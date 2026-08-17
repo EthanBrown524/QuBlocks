@@ -97,7 +97,8 @@ qublocks/
 1. AST schema + simulator, no UI yet — get the state-vector math right
    first, with property-based tests. **(done — see `packages/ast-schema`,
    `packages/simulator`)**
-2. OpenQASM backend + golden tests.
+2. OpenQASM backend + golden tests. **(done — see
+   `packages/compiler-openqasm`)**
 3. Blockly-based editor, wired to produce the AST — gates and measurement
    only, no loops/subroutines yet.
 4. Live visualization — Bloch spheres and probability bars.
