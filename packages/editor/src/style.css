@@ -34,6 +34,19 @@ header h1 {
   margin-left: 0.25rem;
 }
 
+.validationWarnings {
+  padding: 0.5rem 1rem;
+  background: #4a1a1a;
+  color: #ffb3b3;
+  font-size: 0.85rem;
+  border-bottom: 1px solid #7a2a2a;
+}
+
+.validationWarnings ul {
+  margin: 0.25rem 0 0;
+  padding-left: 1.25rem;
+}
+
 main {
   flex: 1;
   display: flex;

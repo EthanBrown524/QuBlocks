@@ -10,6 +10,7 @@ import type {
   QubitRef,
   Subroutine,
 } from "@qublocks/ast-schema";
+import { assertValidProgram } from "@qublocks/ast-schema";
 
 /** QuantumCircuit method name and whether it takes a leading angle parameter. */
 const GATE_TO_QISKIT: Record<GateName, string> = {
@@ -49,8 +50,16 @@ const INDENT_UNIT = "    ";
  * `supportsConstruct("qiskit", "subroutine-param-arithmetic")` in
  * @qublocks/ast-schema's compatibility matrix, which returns true) — no
  * runtime check is needed here, unlike compiler-openqasm.
+ *
+ * Validates the program first (assertValidProgram, @qublocks/ast-schema)
+ * — physical validity (e.g. a gate with duplicate qubit operands) is
+ * independent of target: left unchecked, a degenerate gate like
+ * `CNOT(0, 0)` would compile to `qc.cx(0, 0)`, which Qiskit itself
+ * hard-errors on at circuit-construction time if the generated file were
+ * actually run.
  */
 export function compileToQiskit(program: QuantumProgram): string {
+  assertValidProgram(program);
   const sections: string[][] = [];
 
   sections.push(["from qiskit import QuantumCircuit"]);

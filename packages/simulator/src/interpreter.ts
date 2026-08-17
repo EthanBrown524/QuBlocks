@@ -1,5 +1,5 @@
 import type { Operation, QuantumProgram, QubitRef, Subroutine } from "@qublocks/ast-schema";
-import { resolveQubitRef } from "@qublocks/ast-schema";
+import { assertValidProgram, resolveQubitRef } from "@qublocks/ast-schema";
 import { cAbs2 } from "./complex.js";
 import { applyGate, createZeroState, type StateVector } from "./stateVector.js";
 
@@ -19,11 +19,22 @@ interface ExecContext {
   rng: () => number;
 }
 
-/** Runs a QuantumProgram to completion and returns the final state. */
+/**
+ * Runs a QuantumProgram to completion and returns the final state.
+ *
+ * Validates the program first (assertValidProgram) — e.g. a multi-qubit
+ * gate with duplicate operands, like CNOT(0, 0), doesn't throw or crash
+ * anywhere in the gate-application math (applyControlledUnitary's control
+ * and target masks end up mutually exclusive, so every basis state gets
+ * skipped and the "gate" silently becomes a no-op). Left unvalidated,
+ * that would animate a plausible-looking but physically meaningless
+ * result once visualization consumes this output.
+ */
 export function run(
   program: QuantumProgram,
   rng: () => number = Math.random
 ): SimulationResult {
+  assertValidProgram(program);
   const amps = createZeroState(program.qubitCount);
   const classicalBits: (0 | 1)[] = new Array(program.classicalBitCount).fill(0);
   const subroutines = new Map(program.subroutines.map((s) => [s.name, s]));

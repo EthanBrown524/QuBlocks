@@ -28,10 +28,16 @@ the simpler case first.
   `@qublocks/compiler-openqasm` and `@qublocks/compiler-qiskit` (both
   already fully tested elsewhere in this repo) so dragging gates onto the
   canvas immediately shows real generated code in both languages, not
-  just an internal AST. Also consults
-  `checkProgramCompatibility` (`@qublocks/ast-schema`) per target, so an
-  incompatible construct shows a specific warning instead of a raw
-  compile-error stack.
+  just an internal AST. Also consults `checkProgramCompatibility`
+  (`@qublocks/ast-schema`) per target, so an incompatible construct shows
+  a specific warning instead of a raw compile-error stack — and,
+  separately, `validateProgram` (also `@qublocks/ast-schema`) on every
+  render, surfaced as a red banner above the canvas *before* either
+  target is even attempted: a multi-qubit gate with duplicate operands
+  (e.g. a CNOT with the same qubit typed into both fields) or an
+  out-of-range qubit/classical-bit index is a physical-validity problem,
+  independent of target, so it's shown once at the point of construction
+  rather than as a per-panel compile error.
 
 ## Verification status
 
@@ -61,8 +67,8 @@ the simpler case first.
   (tracked in the root README's phased build order).
 - Live simulator visualization (Bloch spheres, probability bars) — a
   separate phase.
-- No qubit-count/classical-bit-count validation against what's actually
-  used in the block chain (e.g. a measure block targeting a
-  classical bit beyond the configured count) — the simulator/compilers
-  will surface that as a runtime error, but the editor doesn't pre-flight
-  it yet.
+- `validateProgram`'s static checks are literal-index-only by design (see
+  `packages/ast-schema/src/validate.ts`) — irrelevant for this editor's
+  current gates-and-measurement-only scope, since every QubitRef it
+  produces is a literal number, but worth remembering once loops/
+  subroutines (and their variable-based QubitRefs) reach the editor.

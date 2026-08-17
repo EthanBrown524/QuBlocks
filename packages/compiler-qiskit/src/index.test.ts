@@ -274,4 +274,17 @@ describe("compileToQiskit — gate set and edge cases", () => {
     };
     expect(compileToQiskit(program)).toContain("qc.x(a + 1)");
   });
+
+  it("rejects a degenerate CNOT (control === target) before emitting any code", () => {
+    // Unvalidated, this would compile to qc.cx(0, 0), which Qiskit itself
+    // hard-errors on at circuit-construction time if actually executed.
+    const program: QuantumProgram = {
+      qubitCount: 2,
+      classicalBitCount: 0,
+      parameters: [],
+      subroutines: [],
+      body: [{ kind: "gate", gate: "CNOT", qubits: [0, 0] }],
+    };
+    expect(() => compileToQiskit(program)).toThrow(/same qubit.*more than once/);
+  });
 });

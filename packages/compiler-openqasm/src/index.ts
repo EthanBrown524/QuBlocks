@@ -10,7 +10,7 @@ import type {
   QubitRef,
   Subroutine,
 } from "@qublocks/ast-schema";
-import { describeConstruct, supportsConstruct } from "@qublocks/ast-schema";
+import { assertValidProgram, describeConstruct, supportsConstruct } from "@qublocks/ast-schema";
 
 const GATE_TO_QASM: Record<GateName, string> = {
   H: "h",
@@ -38,8 +38,15 @@ const INDENT_UNIT = "  ";
 /**
  * Compiles a QuantumProgram AST to OpenQASM 3 source. Pure function,
  * AST -> string — no I/O, no execution.
+ *
+ * Validates the program first (assertValidProgram, @qublocks/ast-schema)
+ * — physical validity (e.g. a gate with duplicate qubit operands) is
+ * independent of target and would otherwise silently compile to code
+ * that either hard-errors on execution (e.g. Qiskit's own cx(0, 0)) or,
+ * worse, quietly does nothing.
  */
 export function compileToOpenQasm3(program: QuantumProgram): string {
+  assertValidProgram(program);
   const sections: string[][] = [];
 
   sections.push(["OPENQASM 3;", 'include "stdgates.inc";']);

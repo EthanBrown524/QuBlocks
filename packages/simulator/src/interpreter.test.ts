@@ -187,6 +187,22 @@ describe("interpreter", () => {
     expect(() => run(program)).toThrow(/qubit index -1 is out of range/);
   });
 
+  it("rejects a degenerate CNOT (control === target) up front, instead of silently no-op-ing", () => {
+    // Without validation, applyControlledUnitary's control and target
+    // masks end up mutually exclusive when they're the same qubit, so
+    // every basis state gets skipped and the gate silently does nothing
+    // — no error, no state change. assertValidProgram catches this
+    // before the gate math ever runs.
+    const program: QuantumProgram = {
+      qubitCount: 2,
+      classicalBitCount: 0,
+      parameters: [],
+      subroutines: [],
+      body: [{ kind: "gate", gate: "CNOT", qubits: [0, 0] }],
+    };
+    expect(() => run(program)).toThrow(/same qubit.*more than once/);
+  });
+
   it("throws a clear error for a classical bit index >= classicalBitCount", () => {
     const program: QuantumProgram = {
       qubitCount: 1,

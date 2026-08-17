@@ -1,5 +1,10 @@
 import * as Blockly from "blockly";
-import { checkProgramCompatibility, type CompileTarget, type QuantumProgram } from "@qublocks/ast-schema";
+import {
+  checkProgramCompatibility,
+  validateProgram,
+  type CompileTarget,
+  type QuantumProgram,
+} from "@qublocks/ast-schema";
 import { compileToOpenQasm3 } from "@qublocks/compiler-openqasm";
 import { compileToQiskit } from "@qublocks/compiler-qiskit";
 import { defineBlocks } from "./blocks.js";
@@ -14,6 +19,7 @@ const qubitCountInput = document.getElementById("qubitCount") as HTMLInputElemen
 const classicalBitCountInput = document.getElementById("classicalBitCount") as HTMLInputElement;
 const openqasmCode = document.querySelector("#openqasmOutput code") as HTMLElement;
 const qiskitCode = document.querySelector("#qiskitOutput code") as HTMLElement;
+const validationWarningsEl = document.getElementById("validationWarnings") as HTMLElement;
 
 function renderTarget(
   codeEl: HTMLElement,
@@ -36,6 +42,19 @@ function renderTarget(
   }
 }
 
+function renderValidationWarnings(program: QuantumProgram): boolean {
+  const issues = validateProgram(program);
+  if (issues.length === 0) {
+    validationWarningsEl.hidden = true;
+    validationWarningsEl.innerHTML = "";
+    return true;
+  }
+  const items = issues.map((issue) => `<li>[${issue.location}] ${issue.message}</li>`).join("");
+  validationWarningsEl.innerHTML = `<strong>This program isn't physically valid — fix before it can run on any target:</strong><ul>${items}</ul>`;
+  validationWarningsEl.hidden = false;
+  return false;
+}
+
 function render(): void {
   const qubitCount = Number(qubitCountInput.value);
   const classicalBitCount = Number(classicalBitCountInput.value);
@@ -47,6 +66,22 @@ function render(): void {
     const message = `Error: ${(err as Error).message}`;
     openqasmCode.textContent = message;
     qiskitCode.textContent = message;
+    return;
+  }
+
+  // Physical validity (e.g. a gate with duplicate qubit operands) is
+  // independent of target, so it's surfaced once, up front, at the point
+  // of construction — not as a per-target compile error. Both compile
+  // functions also call assertValidProgram themselves (defense in depth,
+  // since they're reachable from more than just this UI), so this check
+  // is a UX improvement, not the only thing standing between an invalid
+  // program and a compile error.
+  if (!renderValidationWarnings(program)) {
+    const message = "Fix the issue(s) above to see generated code.";
+    openqasmCode.textContent = message;
+    qiskitCode.textContent = message;
+    openqasmCode.classList.remove("error");
+    qiskitCode.classList.remove("error");
     return;
   }
 

@@ -130,6 +130,11 @@ export const PARAMETERIZED_GATES: ReadonlySet<GateName> = new Set([
 
 export { resolveQubitRef } from "./resolveQubitRef.js";
 export {
+  assertValidProgram,
+  validateProgram,
+  type ValidationIssue,
+} from "./validate.js";
+export {
   ALL_COMPILE_TARGETS,
   checkProgramCompatibility,
   describeConstruct,

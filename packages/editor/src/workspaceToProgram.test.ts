@@ -1,5 +1,6 @@
 import * as Blockly from "blockly";
 import type { Block } from "blockly";
+import { validateProgram } from "@qublocks/ast-schema";
 import { beforeAll, describe, expect, it } from "vitest";
 import { defineBlocks } from "./blocks.js";
 import { workspaceToProgram } from "./workspaceToProgram.js";
@@ -157,5 +158,20 @@ describe("workspaceToProgram", () => {
     ]);
     workspace.newBlock("not_a_qublocks_block");
     expect(() => workspaceToProgram(workspace, 1, 0)).toThrow(/unrecognized block type/);
+  });
+
+  it("produces a program @qublocks/ast-schema's validateProgram flags as invalid, for a CNOT block with control === target", () => {
+    // Confirms the editor's translator output is what the shared
+    // validator actually consumes — a user dragging out a degenerate
+    // CNOT (same qubit typed into both fields) produces an AST the
+    // editor's validation warning banner (main.ts) is built to catch.
+    const workspace = newWorkspace();
+    const cnot = workspace.newBlock("gate_cnot");
+    cnot.setFieldValue("0", "CONTROL");
+    cnot.setFieldValue("0", "TARGET");
+    const program = workspaceToProgram(workspace, 2, 0);
+    const issues = validateProgram(program);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].message).toMatch(/same qubit.*more than once/);
   });
 });
