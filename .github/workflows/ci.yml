@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        package:
+          - ast-schema
+          - simulator
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck --workspace=packages/${{ matrix.package }}
+      - run: npm run test --workspace=packages/${{ matrix.package }}
+
+  # Cross-validation against real Qiskit/Cirq is wired up once
+  # compiler-qiskit / compiler-cirq / ci/cross_validate.py exist
+  # (see the project's phased build order).
