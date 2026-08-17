@@ -257,11 +257,28 @@ def test_teleportation_conditional_native() -> None:
     diff, not just a physical-plausibility check — real toolchain proof,
     not a coincidence of matching seeds.
 
-    Runs enough seeds to observe all 4 branches (m0, m1) in
+    Runs enough attempts to observe all 4 branches (m0, m1) in
     {0, 1} x {0, 1} — teleportation's whole point is that the classical
     correction fixes the state on every branch, so a bug that only
     corrupts one branch (e.g. only the X correction, or only the Z
-    correction) would otherwise go unnoticed.
+    correction) would otherwise go unnoticed. Each branch should occur
+    with ~25% probability (coupon collector's problem puts the expected
+    number of attempts to see all 4 at ~8-10), so MAX_ATTEMPTS gives a
+    wide safety margin — P(missing a specific branch after MAX_ATTEMPTS
+    independent draws at p=0.25) is astronomically small — while still
+    bounding worst-case runtime: an unreachable branch (a real bug this
+    test exists to catch — e.g. a conditional whose classicalBit index
+    got swapped, making one branch impossible) fails with a specific
+    message naming it, rather than hanging CI until the job timeout.
+
+    NOT checked: that the 4 branches occur with roughly equal frequency.
+    The loop above exits as soon as all 4 have been seen once (typically
+    ~10-15 attempts) to keep the test fast; that sample is far too small
+    to distinguish "uniform" from "skewed" without either a much larger
+    fixed sample (adding real CI time for a property the coverage check
+    above already mostly protects against) or a tolerance loose enough to
+    be nearly meaningless. Left out to avoid trading a flaky assertion
+    for marginal extra coverage.
     """
     # The compiled source doesn't depend on the branch — fetch it once,
     # then run it repeatedly through Aer (each run samples its own random
@@ -271,8 +288,8 @@ def test_teleportation_conditional_native() -> None:
     branches_needed = {(0, 0), (0, 1), (1, 0), (1, 1)}
     seen_branches: dict = {}
     attempts = 0
-    max_attempts = 40
-    while branches_needed - seen_branches.keys() and attempts < max_attempts:
+    MAX_ATTEMPTS = 300
+    while branches_needed - seen_branches.keys() and attempts < MAX_ATTEMPTS:
         sv, classical_bits = run_qiskit_python_source_once(source)
         branch = (classical_bits[0], classical_bits[1])
         if branch not in seen_branches:
@@ -280,10 +297,15 @@ def test_teleportation_conditional_native() -> None:
         attempts += 1
 
     missing = branches_needed - seen_branches.keys()
-    assert not missing, (
-        f"only observed branches {sorted(seen_branches.keys())} across {attempts} Aer runs; "
-        f"never saw {sorted(missing)} — increase max_attempts or check for a biased/broken RNG"
-    )
+    if missing:
+        missing_desc = ", ".join(f"(m0={m0}, m1={m1})" for m0, m1 in sorted(missing))
+        raise AssertionError(
+            f"branch(es) {missing_desc} never observed across {attempts} Aer runs "
+            f"(saw only {sorted(seen_branches.keys())}) — teleportation's classical "
+            f"correction should reach all 4 branches with ~25% probability each, so "
+            f"this points to a real bug (e.g. a swapped classicalBit index making a "
+            f"branch unreachable), not bad luck"
+        )
 
     for (m0, m1), qiskit_sv in seen_branches.items():
         data = run_ts_generator("ci/generate-qiskit-teleportation.ts", str(m0), str(m1))
