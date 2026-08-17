@@ -22,3 +22,14 @@ current toolchain: `qiskit.qasm3.loads` can't execute `def` subroutines or
 loop-variable-indexed qubits at all, so the native emission for programs
 using either isn't yet toolchain-verified, only AST-semantics-verified via
 a manually unrolled equivalent.
+
+## Known cross-backend difference
+
+A `QubitRef` coefficient/offset on a subroutine's qubit parameter is a
+**compile error** here (OpenQASM `qubit` parameters aren't integers) but
+compiles fine in `@qublocks/compiler-qiskit` (Python function args are
+plain integers, so arithmetic on them is unrestricted — see that
+package's README). See the tracking note there: this needs to become an
+explicit, documented (or programmatically checked) compatibility matrix
+before the block editor ships, so a circuit that compiles to one target
+doesn't silently fail on another.

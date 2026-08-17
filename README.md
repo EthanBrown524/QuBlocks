@@ -100,7 +100,14 @@ qublocks/
 2. OpenQASM backend + golden tests. **(done — see
    `packages/compiler-openqasm`)**
 3. Blockly-based editor, wired to produce the AST — gates and measurement
-   only, no loops/subroutines yet.
+   only, no loops/subroutines yet. **Before this ships: at least one
+   confirmed per-backend behavior difference exists — a `QubitRef`
+   coefficient/offset on a subroutine's qubit parameter compiles on
+   `compiler-qiskit` but is a compile error on `compiler-openqasm` (see
+   both packages' READMEs). This needs to become an explicit, documented
+   (or programmatically checked) compatibility matrix before users can
+   build circuits in the editor, so a circuit that compiles to one target
+   doesn't silently fail on another.**
 4. Live visualization — Bloch spheres and probability bars.
 5. Qiskit + Cirq backends, with the CI cross-validation job. **(Qiskit
    backend done — see `packages/compiler-qiskit`; Cirq still pending)**

@@ -14,10 +14,14 @@ Two backends, two very different confidence levels:
 - **OpenQASM 3** (`@qublocks/compiler-openqasm`) goes through
   `qiskit.qasm3.loads`, whose parser has real gaps — see below.
 - **Qiskit (Python)** (`@qublocks/compiler-qiskit`) emits plain Python
-  (real `for` loops, real functions for subroutines) and is exec()'d
-  directly, so it never hits those gaps at all. Its Bell-pair-factory
-  cross-validation test runs the compiler's actual loop+subroutine output
-  as one program, no fallback needed.
+  (real `for` loops, real functions for subroutines, real
+  `with qc.if_test(...)` conditionals) and is exec()'d directly, so it
+  never hits those gaps at all. Its cross-validation tests run the
+  compiler's actual loop+subroutine output as one program (no fallback
+  needed), and separately force the teleportation preset's real,
+  Aer-observed measurement branch onto the TypeScript simulator so the
+  classically-controlled conditional gets an exact same-branch diff too —
+  covering all 4 possible measurement branches, not just one.
 
 ## Known toolchain gap
 

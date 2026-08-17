@@ -21,11 +21,19 @@ equivalent since the importer can't run the compiler's actual `def`/`for`
 output for that preset. See each test's docstring for exactly what it
 does and doesn't prove.
 
-Qiskit (Python) backend (test 3) — emits plain Python (real `for`
-statements, real functions for subroutines), so it never goes through
-qiskit_qasm3_import at all and isn't subject to either gap above. Test 3
-executes the compiler's actual output — loop AND subroutine together, in
-one program — via exec() + Aer, with no fallback/unroll needed.
+Qiskit (Python) backend (tests 3-4) — emits plain Python (real `for`
+statements, real functions for subroutines, real `with qc.if_test(...)`
+conditionals), so it never goes through qiskit_qasm3_import at all and
+isn't subject to either gap above. Test 3 executes the compiler's actual
+output — loop AND subroutine together, in one program — via exec() + Aer,
+with no fallback/unroll needed. Test 4 does the same for the
+classically-controlled conditional construct (measure, then branch),
+exercised by the teleportation preset: since the measurement outcome is
+genuinely random per execution, it forces the TypeScript simulator to
+reproduce whichever branch Aer actually measured (rather than comparing
+two independently-random branches that would only agree by chance), and
+checks all 4 possible branches so a correction bug specific to one branch
+can't hide.
 
 Run: pip install -r ci/requirements.txt && python ci/cross_validate.py
 """
@@ -43,16 +51,16 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 TOLERANCE = 1e-6
 
 
-def run_ts_generator(script: str) -> dict:
+def run_ts_generator(script: str, *args: str) -> dict:
     """Runs a `ci/generate-*.ts` script via tsx and parses its JSON stdout.
 
-    These scripts call the real @qublocks/compiler-openqasm and
-    @qublocks/simulator packages directly — the QASM string and
-    amplitudes below are genuine compiler/simulator output, not
-    hand-copied fixtures.
+    These scripts call the real @qublocks/compiler-openqasm,
+    @qublocks/compiler-qiskit, and @qublocks/simulator packages directly —
+    the source strings and amplitudes below are genuine compiler/simulator
+    output, not hand-copied fixtures.
     """
     result = subprocess.run(
-        ["npx", "--yes", "tsx", script],
+        ["npx", "--yes", "tsx", script, *args],
         capture_output=True,
         text=True,
         cwd=REPO_ROOT,
@@ -87,6 +95,26 @@ def statevector_from_qiskit_python_source(source: str) -> np.ndarray:
 
 def amplitudes_to_array(amplitudes: list) -> np.ndarray:
     return np.array([complex(re, im) for re, im in amplitudes])
+
+
+def run_qiskit_python_source_once(source: str) -> tuple[np.ndarray, list]:
+    """Executes Qiskit (Python) source for exactly one shot and returns
+    (statevector, classical_bits), where classical_bits[i] is the outcome
+    of classical bit i for that single run. shots=1 is essential here:
+    with the default (1024), get_statevector/get_counts don't correspond
+    to the same single measurement branch, which would make the branch
+    the statevector reflects ambiguous."""
+    namespace: dict = {}
+    exec(source, namespace)  # noqa: S102 - executing our own compiler's output, not untrusted input
+    circuit = namespace["qc"]
+    circuit.save_statevector()
+    sim = AerSimulator(method="statevector")
+    result = sim.run(circuit, shots=1).result()
+    sv = np.array(result.get_statevector(circuit))
+    bitstring = next(iter(result.get_counts(circuit)))
+    num_bits = circuit.num_clbits
+    classical_bits = [int(bitstring[num_bits - 1 - i]) for i in range(num_bits)]
+    return sv, classical_bits
 
 
 def assert_statevectors_close(actual: np.ndarray, expected: np.ndarray, label: str) -> None:
@@ -209,11 +237,73 @@ def test_qiskit_backend_loop_and_subroutine_native() -> None:
     )
 
 
+def test_teleportation_conditional_native() -> None:
+    """
+    Proves, via real execution, that @qublocks/compiler-qiskit's
+    classically-controlled conditional emission (`with qc.if_test(...)`)
+    is correct — the same rigor just applied to loop+subroutine above,
+    now for the construct the teleportation preset exercises: measure,
+    then branch on the classical result.
+
+    Teleportation's measurement outcomes are genuinely random per
+    execution, so a single Aer run can't be diffed against a single
+    simulator run the way the deterministic Bell-pair-factory case could
+    — two independent random branches would only match by chance. Instead:
+    for each of several Aer seeds (shots=1, so exactly one classical
+    outcome per run), the actual (m0, m1) branch Aer measured is read back
+    from qc's classical bits, and @qublocks/simulator is forced (via
+    ci/generate-qiskit-teleportation.ts's CLI args) to reproduce that same
+    branch deterministically. That gives an exact, same-branch statevector
+    diff, not just a physical-plausibility check — real toolchain proof,
+    not a coincidence of matching seeds.
+
+    Runs enough seeds to observe all 4 branches (m0, m1) in
+    {0, 1} x {0, 1} — teleportation's whole point is that the classical
+    correction fixes the state on every branch, so a bug that only
+    corrupts one branch (e.g. only the X correction, or only the Z
+    correction) would otherwise go unnoticed.
+    """
+    # The compiled source doesn't depend on the branch — fetch it once,
+    # then run it repeatedly through Aer (each run samples its own random
+    # branch) rather than re-invoking the TS generator per attempt.
+    source = run_ts_generator("ci/generate-qiskit-teleportation.ts", "0", "0")["source"]
+
+    branches_needed = {(0, 0), (0, 1), (1, 0), (1, 1)}
+    seen_branches: dict = {}
+    attempts = 0
+    max_attempts = 40
+    while branches_needed - seen_branches.keys() and attempts < max_attempts:
+        sv, classical_bits = run_qiskit_python_source_once(source)
+        branch = (classical_bits[0], classical_bits[1])
+        if branch not in seen_branches:
+            seen_branches[branch] = sv
+        attempts += 1
+
+    missing = branches_needed - seen_branches.keys()
+    assert not missing, (
+        f"only observed branches {sorted(seen_branches.keys())} across {attempts} Aer runs; "
+        f"never saw {sorted(missing)} — increase max_attempts or check for a biased/broken RNG"
+    )
+
+    for (m0, m1), qiskit_sv in seen_branches.items():
+        data = run_ts_generator("ci/generate-qiskit-teleportation.ts", str(m0), str(m1))
+        assert data["classicalBits"] == [m0, m1], (
+            f"forced simulator branch mismatch: asked for {(m0, m1)}, got {data['classicalBits']}"
+        )
+        simulator_amps = amplitudes_to_array(data["amplitudes"])
+        assert_statevectors_close(
+            qiskit_sv,
+            simulator_amps,
+            f"Qiskit backend: teleportation preset, branch (m0={m0}, m1={m1}) (native conditional, executed as emitted)",
+        )
+
+
 if __name__ == "__main__":
     tests = [
         test_loop_range_translation_native,
         test_bell_pair_factory_semantics_via_manual_unroll,
         test_qiskit_backend_loop_and_subroutine_native,
+        test_teleportation_conditional_native,
     ]
     failures = 0
     for test in tests:

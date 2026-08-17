@@ -24,4 +24,23 @@ is real, not partial: because the generated Python never goes through
 subroutines or loop-variable-indexed qubits (see `ci/README.md`). The
 Bell-pair-factory preset — loop AND subroutine together — is exec()'d
 directly and diffed against `@qublocks/simulator`'s statevector, with no
-manual-unroll fallback needed.
+manual-unroll fallback needed. The teleportation preset gets the same
+treatment for the classically-controlled conditional construct
+(`with qc.if_test(...)`): since its measurement outcome is genuinely
+random per run, the real Aer-observed branch is forced onto the
+simulator for an exact same-branch diff, checked across all 4 possible
+measurement branches.
+
+## Known cross-backend difference
+
+A `QubitRef` coefficient/offset on a subroutine's qubit parameter
+compiles fine here but is a **compile error** in
+`@qublocks/compiler-openqasm` (OpenQASM `qubit` parameters aren't
+integers, so arithmetic on them isn't expressible — see that package's
+README). This is currently only visible as implicit per-backend
+compile-time behavior; before the block editor ships, a circuit that
+compiles successfully to one target but fails on another needs to be
+either surfaced explicitly (a documented compatibility matrix) or caught
+programmatically (e.g. a lint pass warning when an AST uses a construct
+not portable across all enabled targets), so a user isn't surprised by a
+silent per-target failure. Tracked as a follow-up, not yet done.
