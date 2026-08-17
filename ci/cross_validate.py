@@ -1,23 +1,31 @@
 """
-Execution-based cross-validation: runs OpenQASM 3 source actually emitted
-by @qublocks/compiler-openqasm through a real toolchain (qiskit.qasm3 +
-Aer) and diffs the resulting statevector against @qublocks/simulator's
-TypeScript output for the same AST.
+Execution-based cross-validation: runs code actually emitted by the
+compiler backends through a real toolchain (Qiskit + Aer) and diffs the
+resulting statevector against @qublocks/simulator's TypeScript output for
+the same AST. This is what proves a compiler backend is correct, not just
+plausible-looking golden-string output.
 
-This is what proves the compiler backend is correct, not just
-plausible-looking golden-string output — see the two tests below for what
-each one actually proves, and where the currently-available toolchain
-falls short of proving the whole thing.
+Two backends are covered, with very different levels of confidence:
 
-Toolchain gap (confirmed by running it, not assumed): qiskit_qasm3_import
-0.6.0 — the parser behind `qiskit.qasm3.loads`, and the latest version
-available as of writing — rejects `def` subroutine definitions outright
-(`SubroutineDefinition is not supported`), and separately cannot resolve
-*any* loop-variable-indexed qubit reference, not just arithmetic ones:
-even the bare case `for i in [0:2] { x q[i]; }` fails inside its
-expression resolver with `TypeError: index must be int, slice or list`.
-A native `for` loop with no variable-indexed qubit access *does* parse
-and execute correctly, which is what test 1 exploits.
+OpenQASM 3 backend (tests 1-2) — goes through qiskit.qasm3.loads, whose
+underlying parser (qiskit_qasm3_import 0.6.0, the latest version
+available as of writing) has real, confirmed gaps: it rejects `def`
+subroutine definitions outright (`SubroutineDefinition is not
+supported`), and separately cannot resolve *any* loop-variable-indexed
+qubit reference, not just arithmetic ones — even the bare case
+`for i in [0:2] { x q[i]; }` fails inside its expression resolver with
+`TypeError: index must be int, slice or list`. A native `for` loop with
+no variable-indexed qubit access *does* parse and execute correctly,
+which is what test 1 exploits; test 2 falls back to a manually unrolled
+equivalent since the importer can't run the compiler's actual `def`/`for`
+output for that preset. See each test's docstring for exactly what it
+does and doesn't prove.
+
+Qiskit (Python) backend (test 3) — emits plain Python (real `for`
+statements, real functions for subroutines), so it never goes through
+qiskit_qasm3_import at all and isn't subject to either gap above. Test 3
+executes the compiler's actual output — loop AND subroutine together, in
+one program — via exec() + Aer, with no fallback/unroll needed.
 
 Run: pip install -r ci/requirements.txt && python ci/cross_validate.py
 """
@@ -57,6 +65,20 @@ def run_ts_generator(script: str) -> dict:
 
 def statevector_from_qasm(qasm_source: str) -> np.ndarray:
     circuit = qasm3.loads(qasm_source)
+    circuit.save_statevector()
+    sim = AerSimulator(method="statevector")
+    result = sim.run(circuit).result()
+    return np.array(result.get_statevector(circuit))
+
+
+def statevector_from_qiskit_python_source(source: str) -> np.ndarray:
+    """Executes Qiskit (Python) source emitted by @qublocks/compiler-qiskit
+    and returns the resulting statevector. The source is expected to
+    define a module-level `qc` QuantumCircuit variable (which is exactly
+    what compileToQiskit emits)."""
+    namespace: dict = {}
+    exec(source, namespace)  # noqa: S102 - executing our own compiler's output, not untrusted input
+    circuit = namespace["qc"]
     circuit.save_statevector()
     sim = AerSimulator(method="statevector")
     result = sim.run(circuit).result()
@@ -161,8 +183,38 @@ cx q[4], q[5];
     )
 
 
+def test_qiskit_backend_loop_and_subroutine_native() -> None:
+    """
+    Proves, via real execution, that @qublocks/compiler-qiskit's native
+    loop AND subroutine emission are BOTH correct together, for the same
+    Bell-pair-factory preset that the OpenQASM backend could only
+    partially validate above.
+
+    This backend emits plain Python — a real `for i in range(start, end):`
+    statement (Python's range() is already end-exclusive, so unlike the
+    OpenQASM backend there's no [start, end) -> [start:end-1] translation
+    to get wrong) and a real Python function for the subroutine. Neither
+    goes through qiskit_qasm3_import, so neither of that parser's gaps
+    (no `def` support, no loop-variable-indexed qubits) applies here. The
+    compiler's actual generated source is exec()'d directly and run
+    through Aer — no manual unroll, no fallback.
+    """
+    data = run_ts_generator("ci/generate-qiskit-bell-pair-factory.ts")
+    qiskit_sv = statevector_from_qiskit_python_source(data["source"])
+    simulator_amps = amplitudes_to_array(data["amplitudes"])
+    assert_statevectors_close(
+        qiskit_sv,
+        simulator_amps,
+        "Qiskit backend: Bell-pair-factory preset (native loop + subroutine, executed as emitted)",
+    )
+
+
 if __name__ == "__main__":
-    tests = [test_loop_range_translation_native, test_bell_pair_factory_semantics_via_manual_unroll]
+    tests = [
+        test_loop_range_translation_native,
+        test_bell_pair_factory_semantics_via_manual_unroll,
+        test_qiskit_backend_loop_and_subroutine_native,
+    ]
     failures = 0
     for test in tests:
         try:

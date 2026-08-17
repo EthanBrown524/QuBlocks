@@ -102,7 +102,8 @@ qublocks/
 3. Blockly-based editor, wired to produce the AST — gates and measurement
    only, no loops/subroutines yet.
 4. Live visualization — Bloch spheres and probability bars.
-5. Qiskit + Cirq backends, with the CI cross-validation job.
+5. Qiskit + Cirq backends, with the CI cross-validation job. **(Qiskit
+   backend done — see `packages/compiler-qiskit`; Cirq still pending)**
 6. Loops and subroutines in the editor, plus the AST-to-target translation
    decisions that come with them.
 7. Harden: PR preview deployments, bundle-size budget as a CI gate,

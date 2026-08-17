@@ -1,14 +1,23 @@
 # ci/
 
-`cross_validate.py` installs Qiskit/Aer in Python, executes OpenQASM 3
-actually emitted by `@qublocks/compiler-openqasm` (via the
-`generate-*.ts` scripts, run with `npx tsx`), and diffs the resulting
-statevector against `@qublocks/simulator`'s TypeScript output for the
-same AST.
+`cross_validate.py` installs Qiskit/Aer in Python, executes code actually
+emitted by the compiler backends (via the `generate-*.ts` scripts, run
+with `npx tsx`), and diffs the resulting statevector against
+`@qublocks/simulator`'s TypeScript output for the same AST.
 
 This is CI-only — it never ships and never runs in the browser. It's what
 proves the compiler backends are correct rather than merely
 plausible-looking.
+
+Two backends, two very different confidence levels:
+
+- **OpenQASM 3** (`@qublocks/compiler-openqasm`) goes through
+  `qiskit.qasm3.loads`, whose parser has real gaps — see below.
+- **Qiskit (Python)** (`@qublocks/compiler-qiskit`) emits plain Python
+  (real `for` loops, real functions for subroutines) and is exec()'d
+  directly, so it never hits those gaps at all. Its Bell-pair-factory
+  cross-validation test runs the compiler's actual loop+subroutine output
+  as one program, no fallback needed.
 
 ## Known toolchain gap
 
