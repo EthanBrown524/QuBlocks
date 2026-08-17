@@ -40,8 +40,9 @@ describe("interpreter", () => {
   });
 
   it("prepares several independent Bell pairs via a subroutine called in a loop", () => {
-    // Subroutine references its qubit params positionally (0, 1); each call
-    // maps those to a fresh pair of global qubits.
+    // Subroutine body references its qubit params by name ({ var: "a" },
+    // { var: "b" }); each call site resolves i (the loop variable) into a
+    // fresh, non-overlapping pair of global qubits via coefficient/offset.
     const program: QuantumProgram = {
       qubitCount: 6,
       classicalBitCount: 0,
@@ -51,15 +52,27 @@ describe("interpreter", () => {
           name: "bellPair",
           qubitParams: ["a", "b"],
           body: [
-            { kind: "gate", gate: "H", qubits: [0] },
-            { kind: "gate", gate: "CNOT", qubits: [0, 1] },
+            { kind: "gate", gate: "H", qubits: [{ var: "a" }] },
+            { kind: "gate", gate: "CNOT", qubits: [{ var: "a" }, { var: "b" }] },
           ],
         },
       ],
       body: [
-        { kind: "call", subroutine: "bellPair", qubitArgs: [0, 1] },
-        { kind: "call", subroutine: "bellPair", qubitArgs: [2, 3] },
-        { kind: "call", subroutine: "bellPair", qubitArgs: [4, 5] },
+        {
+          kind: "loop",
+          range: [0, 3],
+          loopVar: "i",
+          body: [
+            {
+              kind: "call",
+              subroutine: "bellPair",
+              qubitArgs: [
+                { var: "i", coefficient: 2 },
+                { var: "i", coefficient: 2, offset: 1 },
+              ],
+            },
+          ],
+        },
       ],
     };
     const { amplitudes } = run(program);

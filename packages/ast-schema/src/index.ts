@@ -4,6 +4,16 @@
  * this AST — nothing talks to the editor directly.
  */
 
+/**
+ * A reference to a qubit or classical bit index that may depend on the
+ * current binding context: either a literal index, or an expression over a
+ * bound variable (a loop's `loopVar`, or a subroutine's `qubitParams` name)
+ * of the form `variable * coefficient + offset`.
+ */
+export type QubitRef =
+  | number
+  | { var: string; coefficient?: number; offset?: number };
+
 /** MVP gate set. */
 export type GateName =
   | "H"
@@ -23,7 +33,7 @@ export type GateName =
 export interface GateOp {
   kind: "gate";
   gate: GateName;
-  qubits: number[];
+  qubits: QubitRef[];
   params?: number[];
 }
 
@@ -31,24 +41,27 @@ export interface LoopOp {
   kind: "loop";
   /** Inclusive-exclusive iteration range, [start, end). */
   range: [number, number];
+  /** Bound to the current iteration index within `body`. */
+  loopVar: string;
   body: Operation[];
 }
 
 export interface CallOp {
   kind: "call";
   subroutine: string;
-  qubitArgs: number[];
+  /** Resolved in the caller's binding context, then bound to the callee's qubitParams by position. */
+  qubitArgs: QubitRef[];
 }
 
 export interface MeasureOp {
   kind: "measure";
-  qubit: number;
-  classicalBit: number;
+  qubit: QubitRef;
+  classicalBit: QubitRef;
 }
 
 export interface ConditionalOp {
   kind: "conditional";
-  classicalBit: number;
+  classicalBit: QubitRef;
   equals: 0 | 1;
   body: Operation[];
 }
@@ -62,7 +75,7 @@ export type Operation =
 
 export interface Subroutine {
   name: string;
-  /** Formal qubit parameter names, referenced positionally by CallOp.qubitArgs. */
+  /** Formal qubit parameter names, referenced from `body` as `{ var: name }` and bound positionally from CallOp.qubitArgs. */
   qubitParams: string[];
   body: Operation[];
 }
@@ -103,3 +116,5 @@ export const PARAMETERIZED_GATES: ReadonlySet<GateName> = new Set([
   "RY",
   "RZ",
 ]);
+
+export { resolveQubitRef } from "./resolveQubitRef.js";

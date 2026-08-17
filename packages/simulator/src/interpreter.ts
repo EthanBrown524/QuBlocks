@@ -1,4 +1,5 @@
 import type { Operation, QuantumProgram, Subroutine } from "@qublocks/ast-schema";
+import { resolveQubitRef } from "@qublocks/ast-schema";
 import { cAbs2 } from "./complex.js";
 import { applyGate, createZeroState, type StateVector } from "./stateVector.js";
 
@@ -11,20 +12,12 @@ interface ExecContext {
   amps: StateVector;
   classicalBits: (0 | 1)[];
   subroutines: Map<string, Subroutine>;
-  /** Maps a qubit index as referenced in the current body to the global qubit index. */
-  translateQubit: (localIndex: number) => number;
+  /** Current variable bindings: loop variables in scope, or the current subroutine's qubitParams. */
+  bindings: Readonly<Record<string, number>>;
   rng: () => number;
 }
 
-/**
- * Runs a QuantumProgram to completion and returns the final state.
- *
- * Note on loops: the current AST's LoopOp carries no per-iteration bound
- * variable (Operation qubit refs are plain numbers, not expressions), so a
- * loop is executed as "repeat this body N times" rather than iterating a
- * qubit index — see the design doc's note that loop/subroutine lowering
- * deserves its own follow-up design pass.
- */
+/** Runs a QuantumProgram to completion and returns the final state. */
 export function run(
   program: QuantumProgram,
   rng: () => number = Math.random
@@ -37,7 +30,7 @@ export function run(
     amps,
     classicalBits,
     subroutines,
-    translateQubit: (i) => i,
+    bindings: {},
     rng,
   };
 
@@ -55,14 +48,18 @@ function executeOperations(ops: Operation[], ctx: ExecContext): void {
 function executeOperation(op: Operation, ctx: ExecContext): void {
   switch (op.kind) {
     case "gate": {
-      const qubits = op.qubits.map(ctx.translateQubit);
+      const qubits = op.qubits.map((q) => resolveQubitRef(q, ctx.bindings));
       applyGate(ctx.amps, op.gate, qubits, op.params);
       return;
     }
     case "loop": {
       const iterations = Math.max(0, op.range[1] - op.range[0]);
-      for (let i = 0; i < iterations; i++) {
-        executeOperations(op.body, ctx);
+      for (let i = op.range[0]; i < op.range[0] + iterations; i++) {
+        const loopCtx: ExecContext = {
+          ...ctx,
+          bindings: { ...ctx.bindings, [op.loopVar]: i },
+        };
+        executeOperations(op.body, loopCtx);
       }
       return;
     }
@@ -76,23 +73,28 @@ function executeOperation(op: Operation, ctx: ExecContext): void {
           `subroutine ${op.subroutine} expects ${sub.qubitParams.length} qubit arg(s), got ${op.qubitArgs.length}`
         );
       }
-      const outerTranslate = ctx.translateQubit;
-      const args = op.qubitArgs;
-      const innerCtx: ExecContext = {
-        ...ctx,
-        translateQubit: (localIndex) => outerTranslate(args[localIndex]),
-      };
+      // Arguments are resolved in the caller's bindings, then bound as the
+      // callee's only bindings — subroutine bodies don't see the call
+      // site's loop variables directly, only through qubitParams.
+      const resolvedArgs = op.qubitArgs.map((a) => resolveQubitRef(a, ctx.bindings));
+      const calleeBindings: Record<string, number> = {};
+      sub.qubitParams.forEach((name, i) => {
+        calleeBindings[name] = resolvedArgs[i];
+      });
+      const innerCtx: ExecContext = { ...ctx, bindings: calleeBindings };
       executeOperations(sub.body, innerCtx);
       return;
     }
     case "measure": {
-      const qubit = ctx.translateQubit(op.qubit);
+      const qubit = resolveQubitRef(op.qubit, ctx.bindings);
+      const classicalBit = resolveQubitRef(op.classicalBit, ctx.bindings);
       const outcome = collapse(ctx.amps, qubit, ctx.rng);
-      ctx.classicalBits[op.classicalBit] = outcome;
+      ctx.classicalBits[classicalBit] = outcome;
       return;
     }
     case "conditional": {
-      if (ctx.classicalBits[op.classicalBit] === op.equals) {
+      const classicalBit = resolveQubitRef(op.classicalBit, ctx.bindings);
+      if (ctx.classicalBits[classicalBit] === op.equals) {
         executeOperations(op.body, ctx);
       }
       return;
