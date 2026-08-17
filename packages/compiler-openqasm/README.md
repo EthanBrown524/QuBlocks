@@ -23,13 +23,21 @@ loop-variable-indexed qubits at all, so the native emission for programs
 using either isn't yet toolchain-verified, only AST-semantics-verified via
 a manually unrolled equivalent.
 
-## Known cross-backend difference
+## Cross-backend compatibility
 
 A `QubitRef` coefficient/offset on a subroutine's qubit parameter is a
 **compile error** here (OpenQASM `qubit` parameters aren't integers) but
 compiles fine in `@qublocks/compiler-qiskit` (Python function args are
 plain integers, so arithmetic on them is unrestricted — see that
-package's README). See the tracking note there: this needs to become an
-explicit, documented (or programmatically checked) compatibility matrix
-before the block editor ships, so a circuit that compiles to one target
-doesn't silently fail on another.
+package's README).
+
+This is no longer just prose: `@qublocks/ast-schema`'s
+`checkProgramCompatibility(program, target)` (backed by a small
+`supportsConstruct(target, construct)` matrix) is the single source of
+truth for this and any future cross-backend difference. This compiler
+consults `supportsConstruct("openqasm3", "subroutine-param-arithmetic")`
+before throwing, rather than hard-coding the rule inline — and any
+consumer (the block editor, in particular) can call
+`checkProgramCompatibility` directly on an AST to know in advance whether
+a given export target will reject it, without attempting a compile and
+catching the error.

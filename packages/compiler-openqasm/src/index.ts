@@ -10,6 +10,7 @@ import type {
   QubitRef,
   Subroutine,
 } from "@qublocks/ast-schema";
+import { describeConstruct, supportsConstruct } from "@qublocks/ast-schema";
 
 const GATE_TO_QASM: Record<GateName, string> = {
   H: "h",
@@ -160,13 +161,22 @@ function qubitRefToQasm(ref: QubitRef, ctx: EmitContext): string {
   }
   // Inside a subroutine, a bare { var: name } refers directly to a
   // qubit-typed parameter — OpenQASM qubit variables aren't integers, so
-  // arithmetic on them (coefficient/offset) isn't expressible.
+  // arithmetic on them (coefficient/offset) isn't expressible. This is
+  // the "subroutine-param-arithmetic" construct in the shared
+  // compatibility matrix (@qublocks/ast-schema) — checked here via
+  // supportsConstruct rather than a locally hard-coded rule, so the
+  // editor (or any other consumer) can query the same answer without
+  // attempting a compile.
   if (typeof ref === "number") {
     return `q[${ref}]`;
   }
-  if ((ref.coefficient ?? 1) !== 1 || (ref.offset ?? 0) !== 0) {
+  if (
+    ((ref.coefficient ?? 1) !== 1 || (ref.offset ?? 0) !== 0) &&
+    !supportsConstruct("openqasm3", "subroutine-param-arithmetic")
+  ) {
     throw new Error(
-      `cannot apply a coefficient/offset to qubit-typed subroutine parameter "${ref.var}" — OpenQASM qubit variables aren't integers`
+      `cannot apply a coefficient/offset to qubit-typed subroutine parameter "${ref.var}": ` +
+        describeConstruct("subroutine-param-arithmetic")
     );
   }
   return ref.var;

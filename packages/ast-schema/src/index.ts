@@ -129,3 +129,12 @@ export const PARAMETERIZED_GATES: ReadonlySet<GateName> = new Set([
 ]);
 
 export { resolveQubitRef } from "./resolveQubitRef.js";
+export {
+  ALL_COMPILE_TARGETS,
+  checkProgramCompatibility,
+  describeConstruct,
+  supportsConstruct,
+  type CompatibilityIssue,
+  type CompileTarget,
+  type Construct,
+} from "./compatibility.js";

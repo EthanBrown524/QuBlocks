@@ -43,7 +43,12 @@ const INDENT_UNIT = "    ";
  * just Python integers/expressions passed as function arguments — not a
  * qubit-typed language construct the way OpenQASM 3's `qubit` parameters
  * are — there's no restriction on applying a QubitRef coefficient/offset
- * to a subroutine parameter here, unlike the OpenQASM backend.
+ * to a subroutine parameter here, unlike the OpenQASM backend. This
+ * backend therefore has nothing to reject for the
+ * "subroutine-param-arithmetic" construct (see
+ * `supportsConstruct("qiskit", "subroutine-param-arithmetic")` in
+ * @qublocks/ast-schema's compatibility matrix, which returns true) — no
+ * runtime check is needed here, unlike compiler-openqasm.
  */
 export function compileToQiskit(program: QuantumProgram): string {
   const sections: string[][] = [];
