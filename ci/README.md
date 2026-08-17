@@ -27,7 +27,14 @@ native `for` loop that doesn't index qubits by the loop variable *does*
 parse and execute correctly — `cross_validate.py`'s first test exploits
 exactly that to give real execution-based proof of the compiler's
 end-exclusive-range-to-OpenQASM-inclusive-range translation
-(`[start, end)` → `[start:end-1]`).
+(`[start, end)` → `[start:end-1]`). That test's scope is limited to the
+loop bound/range translation specifically: its body applies a gate to a
+*fixed* qubit, not one indexed by the loop variable, precisely to avoid
+the second toolchain limitation above. So variable-indexed qubit emission
+(the `q[2*i + 1]`-style expressions the compiler emits for the
+Bell-pair-factory preset below) is still only golden-string-verified
+(`packages/compiler-openqasm/src/index.test.ts`), not execution-verified
+against any real toolchain.
 
 The loop+subroutine Bell-pair-factory preset, which does use both `def`
 and variable-indexed qubits, is instead cross-validated against a

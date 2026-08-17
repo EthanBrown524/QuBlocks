@@ -95,6 +95,18 @@ def test_loop_range_translation_native() -> None:
     The emitted OpenQASM (native `for int i in [0:2] { ... }`) is fed to
     qiskit.qasm3.loads + Aer as-is — this exercises the actual compiler
     output, not a hand-written stand-in.
+
+    CAVEAT: the loop body here deliberately applies its gate to a *fixed*
+    qubit (not indexed by the loop variable), specifically to sidestep the
+    qiskit_qasm3_import limitation documented on the test below — it can't
+    resolve ANY loop-variable-indexed qubit reference, regardless of
+    whether the index is correct. So this test proves the for-loop
+    range/bound translation via real execution, but proves nothing about
+    variable-indexed qubit emission (the `q[2*i+1]`-style expressions the
+    compiler emits for the Bell-pair-factory preset below). That construct
+    is currently golden-string-verified only (see
+    packages/compiler-openqasm/src/index.test.ts) — not execution-verified
+    against any real toolchain.
     """
     data = run_ts_generator("ci/generate-loop-only.ts")
     qiskit_sv = statevector_from_qasm(data["qasm"])
