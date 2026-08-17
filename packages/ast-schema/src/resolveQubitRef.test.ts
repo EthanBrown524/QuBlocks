@@ -46,8 +46,14 @@ describe("resolveQubitRef", () => {
     expect(resolveQubitRef({ var: "i", coefficient: 2 }, { i: 5 })).toBe(10);
   });
 
-  it("throws for an unbound variable", () => {
-    expect(() => resolveQubitRef({ var: "missing" }, {})).toThrow();
+  it("throws a clear, specific error naming the unbound variable", () => {
+    expect(() => resolveQubitRef({ var: "missing" }, {})).toThrow(
+      /unbound variable.*missing/i
+    );
+    // an unrelated binding being present doesn't mask the missing one
+    expect(() => resolveQubitRef({ var: "missing" }, { other: 3 })).toThrow(
+      /unbound variable.*missing/i
+    );
   });
 
   it("reproduces the Bell-pair-loop index scheme: coefficient 2, offsets 0 and 1", () => {

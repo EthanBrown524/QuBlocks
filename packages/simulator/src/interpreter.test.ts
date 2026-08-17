@@ -91,6 +91,30 @@ describe("interpreter", () => {
     expect(total).toBeCloseTo(1, 10);
   });
 
+  it("range: [0, 1] runs the loop body exactly once, end-exclusive", () => {
+    // RX(pi/2) distinguishes run counts by more than parity (unlike X,
+    // where two applications cancel back to |0>): 0 runs -> P(1)=0,
+    // 1 run -> P(1)=0.5, 2 runs -> P(1)=1. So this pins down "exactly
+    // once", not just "an odd number of times".
+    const program: QuantumProgram = {
+      qubitCount: 1,
+      classicalBitCount: 0,
+      parameters: [],
+      subroutines: [],
+      body: [
+        {
+          kind: "loop",
+          range: [0, 1],
+          loopVar: "i",
+          body: [{ kind: "gate", gate: "RX", qubits: [{ var: "i" }], params: [Math.PI / 2] }],
+        },
+      ],
+    };
+    const { amplitudes } = run(program);
+    const probs = probabilities(amplitudes);
+    expect(probs[1]).toBeCloseTo(0.5, 10);
+  });
+
   it("measurement collapses state and records the classical bit", () => {
     const program: QuantumProgram = {
       qubitCount: 1,
@@ -127,5 +151,83 @@ describe("interpreter", () => {
     const { amplitudes } = run(program, () => 0.5);
     const probs = probabilities(amplitudes);
     expect(probs[3]).toBeCloseTo(1, 10); // |11>
+  });
+
+  it("throws a clear error for an unbound loop/subroutine variable", () => {
+    const program: QuantumProgram = {
+      qubitCount: 1,
+      classicalBitCount: 0,
+      parameters: [],
+      subroutines: [],
+      body: [{ kind: "gate", gate: "X", qubits: [{ var: "notBound" }] }],
+    };
+    expect(() => run(program)).toThrow(/unbound variable/i);
+    expect(() => run(program)).toThrow(/notBound/);
+  });
+
+  it("throws a clear error for a qubit index >= qubitCount, instead of corrupting state-vector math", () => {
+    const program: QuantumProgram = {
+      qubitCount: 2,
+      classicalBitCount: 0,
+      parameters: [],
+      subroutines: [],
+      body: [{ kind: "gate", gate: "X", qubits: [2] }],
+    };
+    expect(() => run(program)).toThrow(/qubit index 2 is out of range/);
+  });
+
+  it("throws a clear error for a negative qubit index", () => {
+    const program: QuantumProgram = {
+      qubitCount: 2,
+      classicalBitCount: 0,
+      parameters: [],
+      subroutines: [],
+      body: [{ kind: "gate", gate: "X", qubits: [-1] }],
+    };
+    expect(() => run(program)).toThrow(/qubit index -1 is out of range/);
+  });
+
+  it("throws a clear error for a classical bit index >= classicalBitCount", () => {
+    const program: QuantumProgram = {
+      qubitCount: 1,
+      classicalBitCount: 1,
+      parameters: [],
+      subroutines: [],
+      body: [{ kind: "measure", qubit: 0, classicalBit: 1 }],
+    };
+    expect(() => run(program)).toThrow(/classical bit index 1 is out of range/);
+  });
+
+  it("throws a clear error for a negative classical bit index from a conditional", () => {
+    const program: QuantumProgram = {
+      qubitCount: 1,
+      classicalBitCount: 1,
+      parameters: [],
+      subroutines: [],
+      body: [
+        { kind: "conditional", classicalBit: -1, equals: 0, body: [] },
+      ],
+    };
+    expect(() => run(program)).toThrow(/classical bit index -1 is out of range/);
+  });
+
+  it("out-of-range index resolved via a loop variable is still caught", () => {
+    // range: [0, 3) with coefficient 1 on a 2-qubit register walks off the
+    // end on the third iteration (i=2) — must throw, not silently wrap.
+    const program: QuantumProgram = {
+      qubitCount: 2,
+      classicalBitCount: 0,
+      parameters: [],
+      subroutines: [],
+      body: [
+        {
+          kind: "loop",
+          range: [0, 3],
+          loopVar: "i",
+          body: [{ kind: "gate", gate: "X", qubits: [{ var: "i" }] }],
+        },
+      ],
+    };
+    expect(() => run(program)).toThrow(/qubit index 2 is out of range/);
   });
 });

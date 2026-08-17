@@ -1,4 +1,4 @@
-import type { Operation, QuantumProgram, Subroutine } from "@qublocks/ast-schema";
+import type { Operation, QuantumProgram, QubitRef, Subroutine } from "@qublocks/ast-schema";
 import { resolveQubitRef } from "@qublocks/ast-schema";
 import { cAbs2 } from "./complex.js";
 import { applyGate, createZeroState, type StateVector } from "./stateVector.js";
@@ -14,6 +14,8 @@ interface ExecContext {
   subroutines: Map<string, Subroutine>;
   /** Current variable bindings: loop variables in scope, or the current subroutine's qubitParams. */
   bindings: Readonly<Record<string, number>>;
+  qubitCount: number;
+  classicalBitCount: number;
   rng: () => number;
 }
 
@@ -31,12 +33,41 @@ export function run(
     classicalBits,
     subroutines,
     bindings: {},
+    qubitCount: program.qubitCount,
+    classicalBitCount: program.classicalBitCount,
     rng,
   };
 
   executeOperations(program.body, ctx);
 
   return { amplitudes: amps, classicalBits };
+}
+
+/**
+ * Resolves a QubitRef to a qubit index and validates it against the
+ * program's qubit count. Throws rather than letting an out-of-range index
+ * reach the state-vector math, where it would silently corrupt amplitudes
+ * (or index out of bounds) instead of failing clearly at the source.
+ */
+function resolveQubit(ref: QubitRef, ctx: ExecContext): number {
+  const index = resolveQubitRef(ref, ctx.bindings);
+  if (!Number.isInteger(index) || index < 0 || index >= ctx.qubitCount) {
+    throw new Error(
+      `qubit index ${index} is out of range: program has ${ctx.qubitCount} qubit(s), valid indices are 0..${ctx.qubitCount - 1}`
+    );
+  }
+  return index;
+}
+
+/** Same as {@link resolveQubit}, but validates against the program's classical bit count. */
+function resolveClassicalBit(ref: QubitRef, ctx: ExecContext): number {
+  const index = resolveQubitRef(ref, ctx.bindings);
+  if (!Number.isInteger(index) || index < 0 || index >= ctx.classicalBitCount) {
+    throw new Error(
+      `classical bit index ${index} is out of range: program has ${ctx.classicalBitCount} classical bit(s), valid indices are 0..${ctx.classicalBitCount - 1}`
+    );
+  }
+  return index;
 }
 
 function executeOperations(ops: Operation[], ctx: ExecContext): void {
@@ -48,7 +79,7 @@ function executeOperations(ops: Operation[], ctx: ExecContext): void {
 function executeOperation(op: Operation, ctx: ExecContext): void {
   switch (op.kind) {
     case "gate": {
-      const qubits = op.qubits.map((q) => resolveQubitRef(q, ctx.bindings));
+      const qubits = op.qubits.map((q) => resolveQubit(q, ctx));
       applyGate(ctx.amps, op.gate, qubits, op.params);
       return;
     }
@@ -86,14 +117,14 @@ function executeOperation(op: Operation, ctx: ExecContext): void {
       return;
     }
     case "measure": {
-      const qubit = resolveQubitRef(op.qubit, ctx.bindings);
-      const classicalBit = resolveQubitRef(op.classicalBit, ctx.bindings);
+      const qubit = resolveQubit(op.qubit, ctx);
+      const classicalBit = resolveClassicalBit(op.classicalBit, ctx);
       const outcome = collapse(ctx.amps, qubit, ctx.rng);
       ctx.classicalBits[classicalBit] = outcome;
       return;
     }
     case "conditional": {
-      const classicalBit = resolveQubitRef(op.classicalBit, ctx.bindings);
+      const classicalBit = resolveClassicalBit(op.classicalBit, ctx);
       if (ctx.classicalBits[classicalBit] === op.equals) {
         executeOperations(op.body, ctx);
       }

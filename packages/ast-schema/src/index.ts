@@ -39,7 +39,18 @@ export interface GateOp {
 
 export interface LoopOp {
   kind: "loop";
-  /** Inclusive-exclusive iteration range, [start, end). */
+  /**
+   * Iteration range as [start, end), end-exclusive — matching the same
+   * convention as Python's `range()` and JS `Array.prototype.slice`. The
+   * body runs `end - start` times (0 times if `end <= start`), with
+   * `loopVar` bound to `start, start + 1, …, end - 1`. `range: [0, 1]`
+   * therefore runs the body exactly once, with `loopVar` bound to `0`.
+   *
+   * This convention is load-bearing for every compiler backend (OpenQASM,
+   * Qiskit, Cirq): each one must reproduce it exactly, whether by emitting
+   * a native end-exclusive loop construct or by unrolling `[start, end)`
+   * by hand.
+   */
   range: [number, number];
   /** Bound to the current iteration index within `body`. */
   loopVar: string;
