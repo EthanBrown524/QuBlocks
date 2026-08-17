@@ -1,0 +1,84 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 1rem;
+  background: #1a1a2e;
+  color: white;
+}
+
+header h1 {
+  font-size: 1.1rem;
+  margin: 0;
+}
+
+.program-settings label {
+  margin-left: 1rem;
+  font-size: 0.85rem;
+}
+
+.program-settings input {
+  width: 3.5rem;
+  margin-left: 0.25rem;
+}
+
+main {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+#blocklyDiv {
+  flex: 1.3;
+  height: 100%;
+}
+
+.previewPanels {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 320px;
+  border-left: 1px solid #ccc;
+}
+
+.previewPanel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-bottom: 1px solid #ccc;
+}
+
+.previewPanel h2 {
+  font-size: 0.85rem;
+  margin: 0;
+  padding: 0.4rem 0.75rem;
+  background: #f0f0f4;
+  border-bottom: 1px solid #ddd;
+}
+
+.previewPanel pre {
+  margin: 0;
+  padding: 0.75rem;
+  overflow: auto;
+  flex: 1;
+  font-size: 0.8rem;
+  background: #1e1e2e;
+  color: #d4d4e8;
+}
+
+.previewPanel .error {
+  color: #ff6b6b;
+}

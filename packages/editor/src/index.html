@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>QuBlocks Editor</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <header>
+      <h1>QuBlocks</h1>
+      <div class="program-settings">
+        <label>Qubits <input id="qubitCount" type="number" min="1" max="16" value="3" /></label>
+        <label>Classical bits <input id="classicalBitCount" type="number" min="0" max="16" value="0" /></label>
+      </div>
+    </header>
+    <main>
+      <div id="blocklyDiv"></div>
+      <div class="previewPanels">
+        <section class="previewPanel">
+          <h2>OpenQASM 3</h2>
+          <pre id="openqasmOutput"><code></code></pre>
+        </section>
+        <section class="previewPanel">
+          <h2>Qiskit (Python)</h2>
+          <pre id="qiskitOutput"><code></code></pre>
+        </section>
+      </div>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

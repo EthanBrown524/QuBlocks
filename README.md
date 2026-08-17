@@ -100,12 +100,15 @@ qublocks/
 2. OpenQASM backend + golden tests. **(done — see
    `packages/compiler-openqasm`)**
 3. Blockly-based editor, wired to produce the AST — gates and measurement
-   only, no loops/subroutines yet. **(compatibility matrix done — see
+   only, no loops/subroutines yet. **(done for this scope — see
+   `packages/editor`: gate + measure blocks, a unit-tested
+   block-to-AST translator, and a live preview wired to the real
+   OpenQASM and Qiskit backends. Compatibility matrix also done — see
    `checkProgramCompatibility`/`supportsConstruct` in
    `packages/ast-schema/src/compatibility.ts`, which programmatically
    answers whether a construct an AST uses is supported by a given
    target, instead of that only being implicit per-backend compile-error
-   behavior. Editor in progress — see `packages/editor`.)**
+   behavior.)**
 4. Live visualization — Bloch spheres and probability bars.
 5. Qiskit + Cirq backends, with the CI cross-validation job. **(Qiskit
    backend done — see `packages/compiler-qiskit`; Cirq still pending)**
